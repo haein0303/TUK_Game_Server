@@ -5,3 +5,4 @@
 #include <thread>
 
 #include <windows.h>
+#include <atlimage.h>
