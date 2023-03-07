@@ -139,24 +139,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		{
 			for (int j = 0; j < 8; j++)
 			{
-				// Calculate the position and color of the current square
+				
 				int x = i * SQUARE_SIZE;
 				int y = j * SQUARE_SIZE;
 				COLORREF color = ((i + j) % 2 == 0) ? WHITE_SQUARE_COLOR : BLACK_SQUARE_COLOR;
 
-				// Create a brush for the current square
+				
 				HBRUSH hBrush = CreateSolidBrush(color);
 
-				// Select the brush into the device context
+				
 				HBRUSH hOldBrush = (HBRUSH)SelectObject(memDC, hBrush);
 
-				// Draw the square
 				Rectangle(memDC, x, y, x + SQUARE_SIZE, y + SQUARE_SIZE);
 
-				// Restore the old brush
+				
 				SelectObject(memDC, hOldBrush);
 
-				// Delete the current brush
+				
 				DeleteObject(hBrush);
 
 				if (i == position.x && j == position.y)
