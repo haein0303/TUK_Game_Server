@@ -4,8 +4,29 @@ using namespace std;
 #pragma comment (lib, "WS2_32.LIB")
 const short SERVER_PORT = 4000;
 const int BUFSIZE = 256;
+
+void error_display(const char* msg, int err_no)
+{
+	
+
+	WCHAR* lpMsgBuf;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL, err_no,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&lpMsgBuf, 0, NULL);
+	std::cout << msg;
+	std::wcout << L"¿¡·¯ " << lpMsgBuf << std::endl;
+	while (true);
+	LocalFree(lpMsgBuf);
+}
+
+
 int main()
 {
+	std::wcout.imbue(std::locale("korean"));
+
 	WSADATA WSAData;
 	WSAStartup(MAKEWORD(2, 0), &WSAData);
 	SOCKET s_socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, 0);
@@ -24,7 +45,11 @@ int main()
 		mybuf.buf = recv_buf; mybuf.len = BUFSIZE;
 		DWORD recv_byte;
 		DWORD recv_flag = 0;
-		WSARecv(c_socket, &mybuf, 1, &recv_byte, &recv_flag, 0, 0);
+		int ret = WSARecv(c_socket, &mybuf, 1, &recv_byte, &recv_flag, 0, 0);
+		if (ret != 0) {
+			int err_num = WSAGetLastError();
+			error_display("WSARECV : ", err_num);
+		}
 		cout << "Client Sent [" << recv_byte << "bytes] : " << recv_buf << endl;
 		DWORD sent_byte;
 		mybuf.len = recv_byte;

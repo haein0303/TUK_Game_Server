@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{b6c6a62e-ce9c-4736-8a8d-6fa858955ef0}</ProjectGuid>
-    <RootNamespace>ChessServer</RootNamespace>
+    <ProjectGuid>{41eea03c-1b76-4f62-9eb6-4b33154447bb}</ProjectGuid>
+    <RootNamespace>playgroundserver</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
