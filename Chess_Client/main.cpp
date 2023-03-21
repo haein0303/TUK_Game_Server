@@ -1,5 +1,7 @@
 #include"stdafx.h"
 
+#include "../Chess_Server/protocol.h"
+
 #define screenW 815
 #define screenH 835
 #define board_div 8
@@ -26,6 +28,12 @@ const COLORREF BLACK_SQUARE_COLOR = RGB(209, 139, 71);
 RECT R_client;
 
 POINT position = { 0,0 };
+
+WSAOVERLAPPED s_over;
+
+SOCKET s_socket;
+WSABUF s_wsabuf[1];
+char s_buf[BUF_SIZE];
 
 
 //타임 프로시저
@@ -64,6 +72,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	RegisterClassEx(&WndClass);
 	// 윈도우 생성
 	hWnd = CreateWindow(lpszClass, _T("CHESS"), WS_OVERLAPPEDWINDOW, 0, 0, screenW, screenH, NULL, (HMENU)NULL, hInstance, NULL);
+
+	//통신
+	WSADATA WSAData;
+	WSAStartup(MAKEWORD(2, 2), &WSAData);
+	s_socket = WSASocket(AF_INET, SOCK_STREAM, 0, 0, 0, WSA_FLAG_OVERLAPPED);
+	SOCKADDR_IN svr_addr;
+	memset(&svr_addr, 0, sizeof(svr_addr));
+	svr_addr.sin_family = AF_INET;
+	svr_addr.sin_port = htons(SERVER_PORT);
+	inet_pton(AF_INET, "127.0.0.1", &svr_addr.sin_addr);
+	WSAConnect(s_socket, reinterpret_cast<sockaddr*>(&svr_addr), sizeof(svr_addr), 0, 0, 0, 0);
+	
 
 	// 윈도우 출력
 	ShowWindow(hWnd, nCmdShow);
@@ -117,6 +137,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		break;
 	case WM_DESTROY:
 		KillTimer(hWnd, 1);
+
+		closesocket(s_socket);
+		WSACleanup();
 		PostQuitMessage(0);
 		break;
 	case WM_PAINT:

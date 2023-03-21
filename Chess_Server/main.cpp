@@ -2,6 +2,14 @@
 #include <WS2tcpip.h>
 using namespace std;
 #pragma comment (lib, "WS2_32.LIB")
+
+#include "protocol.h"
+
+
+
+
+
+
 const short SERVER_PORT = 4000;
 const int BUFSIZE = 256;
 int main()
@@ -21,7 +29,8 @@ int main()
 	for (;;) {
 		char recv_buf[BUFSIZE];
 		WSABUF mybuf;
-		mybuf.buf = recv_buf; mybuf.len = BUFSIZE;
+		mybuf.buf = recv_buf; 
+		mybuf.len = BUFSIZE;
 		DWORD recv_byte;
 		DWORD recv_flag = 0;
 		WSARecv(c_socket, &mybuf, 1, &recv_byte, &recv_flag, 0, 0);
