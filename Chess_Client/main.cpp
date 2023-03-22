@@ -1,13 +1,37 @@
-#include"stdafx.h"
+
+#include <iostream>
+#include <vector>
+#include <string>
+#include <thread>
+
+#include <WS2tcpip.h>
+using namespace std;
+#pragma comment (lib, "WS2_32.LIB")
+
+
+#include <windows.h>
+#include <atlimage.h>
+
+
+
+
+#ifdef _DEBUG
+
+#pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
+
+#endif
+
 
 #include "../Chess_Server/protocol.h"
+
+
 
 #define screenW 815
 #define screenH 835
 #define board_div 8
 
-using namespace std;
 
+using namespace std;
 
 HINSTANCE g_hInst;
 LPCTSTR lpszClass = _T("Window Class Name");
@@ -29,11 +53,38 @@ RECT R_client;
 
 POINT position = { 0,0 };
 
+
+//통신정보
+
+constexpr short SERVER_PORT = 9000;
+constexpr int BUF_SIZE = 200;
+
 WSAOVERLAPPED s_over;
 
 SOCKET s_socket;
 WSABUF s_wsabuf[1];
 char s_buf[BUF_SIZE];
+
+char recv_buf[BUF_SIZE];
+WSABUF mybuf;
+DWORD recv_byte;
+DWORD recv_flag = 0;
+
+
+
+void recv_thread() {
+	while (1) {
+		mybuf.buf = recv_buf;
+		mybuf.len = BUF_SIZE;
+		WSARecv(s_socket, &mybuf, 1, &recv_byte, &recv_flag, 0, 0);
+		cout << "정보 수신" << endl;
+		cout << (int)recv_buf[0] << endl;
+		cout << (int)recv_buf[1] << endl;
+
+		position.x = recv_buf[0];
+		position.y = recv_buf[1];
+	}
+}
 
 
 //타임 프로시저
@@ -84,7 +135,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	inet_pton(AF_INET, "127.0.0.1", &svr_addr.sin_addr);
 	WSAConnect(s_socket, reinterpret_cast<sockaddr*>(&svr_addr), sizeof(svr_addr), 0, 0, 0, 0);
 	
+	cout << "서버 접속 완료" << endl;
 
+	thread t_recv(recv_thread);
 	// 윈도우 출력
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
@@ -93,6 +146,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 		TranslateMessage(&Message);
 		DispatchMessage(&Message);
 	}
+	t_recv.join();
 	return Message.wParam;
 }
 
@@ -122,17 +176,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 	static int BlockSize = 0;
 
+
+	mybuf.buf = recv_buf;
+	mybuf.len = BUF_SIZE;
+
+
 	switch (uMsg) {
 	case WM_CREATE:
 		//타임프로시저 소환
-		SetTimer(hWnd, 1, 200, (TIMERPROC)TimerProc);
-		SetTimer(hWnd, 2, 100, (TIMERPROC)TimerProc);
-
+		SetTimer(hWnd, 1, 200, (TIMERPROC)TimerProc);		
 		
-		
-		POWN.Load(L"B_King.png");
-
-	
+		POWN.Load(L"B_King.png");	
 
 		break;
 	case WM_DESTROY:
@@ -155,6 +209,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 		SelectObject(memDC, hBrush);
 		Rectangle(memDC, 0, 0, screenW, screenH);
+
+		//cout << "RECV 대기중" << endl;
+		//WSARecv(s_socket, &mybuf, 1, &recv_byte, &recv_flag, 0, 0);
+		
 
 		
 
@@ -187,49 +245,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				}
 			}
 		}
+		char send_buf[1] = { 0 };
+		//키입력 있으면은 send
+		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
+			send_buf[0] = 1;
+		}
+		if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
+			send_buf[0] = 2;
+		}
+		if (GetAsyncKeyState(VK_UP) & 0x8000) {
+			send_buf[0] = 3;
+		}
+		if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
+			send_buf[0] = 4;
+		}
+		if (send_buf[0] != 0) {
+			
+			WSABUF s_buf;
 
-		
+			s_buf.buf = send_buf;
+			s_buf.len = 1;
+
+			DWORD sent_byte;
+			cout << "SEND가 일을 하니?" << endl;
+			WSASend(s_socket, &s_buf, 1, &sent_byte, 0, 0, 0);
+		}
 
 		BitBlt(hdc, 0, 0, screenW, screenH, memDC, 0, 0, SRCCOPY);
 
 
 		EndPaint(hWnd, &ps);
-		break;
-	case WM_KEYDOWN:
-		switch (wParam) {
-		case VK_RIGHT:
-			if (position.x < board_div-1) {
-				position.x++;
-			}			
-			break;
-		case VK_LEFT:
-			if (position.x > 0) {
-				position.x--;
-			}
-			break;
-		case VK_DOWN:
-			if (position.y < board_div - 1) {
-				position.y++;
-			}
-			
-			break;
-		case VK_UP:
-			if (position.y > 0) {
-				position.y--;
-			}
-			break;
-		}		
-
-		InvalidateRect(hWnd, NULL, false);
-		break;
-	case WM_MOUSEMOVE:
-		msLocation.x = LOWORD(lParam);
-		msLocation.y = HIWORD(lParam);
-		break;
-	case WM_LBUTTONDOWN:
-		
-
-		InvalidateRect(hWnd, NULL, false);
 		break;
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam); // 위의 세 메시지 외의 나머지 메시지는 OS로
