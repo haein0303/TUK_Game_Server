@@ -124,6 +124,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	// 윈도우 생성
 	hWnd = CreateWindow(lpszClass, _T("CHESS"), WS_OVERLAPPEDWINDOW, 0, 0, screenW, screenH, NULL, (HMENU)NULL, hInstance, NULL);
 
+	char S_ip[10];
+	cout << "아이피 입력 : ";
+	cin >> S_ip;
+
 	//통신
 	WSADATA WSAData;
 	WSAStartup(MAKEWORD(2, 2), &WSAData);
@@ -132,7 +136,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	memset(&svr_addr, 0, sizeof(svr_addr));
 	svr_addr.sin_family = AF_INET;
 	svr_addr.sin_port = htons(SERVER_PORT);
-	inet_pton(AF_INET, "127.0.0.1", &svr_addr.sin_addr);
+	inet_pton(AF_INET, (const char*)S_ip, &svr_addr.sin_addr);
 	WSAConnect(s_socket, reinterpret_cast<sockaddr*>(&svr_addr), sizeof(svr_addr), 0, 0, 0, 0);
 	
 	cout << "서버 접속 완료" << endl;
@@ -180,6 +184,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	mybuf.buf = recv_buf;
 	mybuf.len = BUF_SIZE;
 
+	char send_buf[1] = { 0 };
+	//키입력 있으면은 send
+	
 
 	switch (uMsg) {
 	case WM_CREATE:
@@ -245,8 +252,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				}
 			}
 		}
-		char send_buf[1] = { 0 };
-		//키입력 있으면은 send
+		
+
+		BitBlt(hdc, 0, 0, screenW, screenH, memDC, 0, 0, SRCCOPY);
+
+
+		EndPaint(hWnd, &ps);
+		break;
+	case WM_KEYDOWN:
 		if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
 			send_buf[0] = 1;
 		}
@@ -259,23 +272,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
 			send_buf[0] = 4;
 		}
-		if (send_buf[0] != 0) {
-			
-			WSABUF s_buf;
 
-			s_buf.buf = send_buf;
-			s_buf.len = 1;
+	}
+	if (send_buf[0] != 0) {
 
-			DWORD sent_byte;
-			cout << "SEND가 일을 하니?" << endl;
-			WSASend(s_socket, &s_buf, 1, &sent_byte, 0, 0, 0);
-		}
+		WSABUF s_buf;
 
-		BitBlt(hdc, 0, 0, screenW, screenH, memDC, 0, 0, SRCCOPY);
+		s_buf.buf = send_buf;
+		s_buf.len = 1;
 
-
-		EndPaint(hWnd, &ps);
-		break;
+		DWORD sent_byte;
+		cout << "SEND가 일을 하니?" << endl;
+		WSASend(s_socket, &s_buf, 1, &sent_byte, 0, 0, 0);
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam); // 위의 세 메시지 외의 나머지 메시지는 OS로
 }
