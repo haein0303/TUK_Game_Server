@@ -66,24 +66,59 @@ WSABUF s_wsabuf[1];
 char s_buf[BUF_SIZE];
 
 char recv_buf[BUF_SIZE];
-WSABUF mybuf;
+WSABUF recv_wsabuf;
 DWORD recv_byte;
 DWORD recv_flag = 0;
+DWORD r_flag = 0;
+unsigned long long   _id = 0;
 
+char players[10][3] = { 0 };//0 : 생존여부 // 1 : X // 2 : Y
 
-
-void recv_thread() {
-	while (1) {
-		mybuf.buf = recv_buf;
-		mybuf.len = BUF_SIZE;
-		WSARecv(s_socket, &mybuf, 1, &recv_byte, &recv_flag, 0, 0);
-		cout << "정보 수신" << endl;
-		cout << (int)recv_buf[0] << endl;
-		cout << (int)recv_buf[1] << endl;
-
-		position.x = recv_buf[0];
-		position.y = recv_buf[1];
+void do_recv();
+void CALLBACK recv_callback(DWORD err, DWORD num_bytes, LPWSAOVERLAPPED recv_over, DWORD f)
+{
+	//cout << "recv_callback" << endl;
+	char* p = recv_buf;
+	//cout << "num_bytes : " << num_bytes << endl;
+	//cout << "s_buf : " << s_buf << endl;
+	cout << (int)p[3] << (int)p[4] << endl;
+	while (p < recv_buf + num_bytes) {
+		//cout << "와일이 무한으로 도니?" << endl;
+		char packet_size = *p;
+		int c_id = *(p + 1);
+		//cout << "Client[" << c_id << "] Sent[" << packet_size - 2 << "bytes] : " << (int)*(p + 2) << endl;
+		if (players[c_id - 1][0] == 0) {
+			players[c_id - 1][0] = 1;
+			WSABUF s_buf;
+			DWORD sent_byte;
+			char send_buf[1] = { 11 };
+			s_buf.buf = send_buf;
+			s_buf.len = 1;
+			WSASend(s_socket, &s_buf, 1, &sent_byte, 0, 0, 0);
+		}
+		players[c_id - 1][1] = (int)*(p + 3);
+		players[c_id - 1][2] = (int)*(p + 4);
+		if (players[c_id - 1][1] == 10) {
+			cout << c_id << "번 플레이어 접속 종료" << endl;
+			players[c_id - 1][0] = 0;
+		}
+		p = p + packet_size;
 	}
+	do_recv();
+}
+
+void do_recv() {
+	
+	cout << "Do Recv" << endl;
+	s_wsabuf[0].buf = s_buf;
+	s_wsabuf[0].len = BUF_SIZE;
+
+	ZeroMemory(&s_over, sizeof(s_over));
+	s_over.hEvent = reinterpret_cast<HANDLE>(_id);
+
+	WSARecv(s_socket, &recv_wsabuf, 1, 0, &r_flag, &s_over, recv_callback);
+	
+	//cout << "CHECK" << endl;
 }
 
 
@@ -124,9 +159,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	// 윈도우 생성
 	hWnd = CreateWindow(lpszClass, _T("CHESS"), WS_OVERLAPPEDWINDOW, 0, 0, screenW, screenH, NULL, (HMENU)NULL, hInstance, NULL);
 
-	char S_ip[10];
+	char S_ip[20] = "127.0.0.1";
 	cout << "아이피 입력 : ";
-	cin >> S_ip;
+	//cin >> S_ip;
 
 	//통신
 	WSADATA WSAData;
@@ -138,10 +173,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	svr_addr.sin_port = htons(SERVER_PORT);
 	inet_pton(AF_INET, (const char*)S_ip, &svr_addr.sin_addr);
 	WSAConnect(s_socket, reinterpret_cast<sockaddr*>(&svr_addr), sizeof(svr_addr), 0, 0, 0, 0);
-	
-	cout << "서버 접속 완료" << endl;
 
-	thread t_recv(recv_thread);
+	recv_wsabuf.buf = recv_buf;
+	recv_wsabuf.len = BUF_SIZE;
+	WSABUF s_buf;
+	char send_buf[1] = { 11 };
+	s_buf.buf = send_buf;
+	s_buf.len = 1;
+	DWORD sent_byte;
+	cout << "서버 접속 완료" << endl;
+	WSASend(s_socket, &s_buf, 1, &sent_byte, 0, 0, 0);
+	do_recv();
+	
 	// 윈도우 출력
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
@@ -149,8 +192,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	while (GetMessage(&Message, 0, 0, 0)) {
 		TranslateMessage(&Message);
 		DispatchMessage(&Message);
+		SleepEx(0, true);
 	}
-	t_recv.join();
+	
 	return Message.wParam;
 }
 
@@ -180,13 +224,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 	static int BlockSize = 0;
 
-
-	mybuf.buf = recv_buf;
-	mybuf.len = BUF_SIZE;
-
 	char send_buf[1] = { 0 };
 	//키입력 있으면은 send
 	
+	WSABUF s_buf;
+	DWORD sent_byte;
+	s_buf.buf = send_buf;
+	s_buf.len = 1;
 
 	switch (uMsg) {
 	case WM_CREATE:
@@ -198,7 +242,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		break;
 	case WM_DESTROY:
 		KillTimer(hWnd, 1);
-
+		send_buf[0] = 12;
+		WSASend(s_socket, &s_buf, 1, &sent_byte, 0, 0, 0);
 		closesocket(s_socket);
 		WSACleanup();
 		PostQuitMessage(0);
@@ -245,11 +290,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 				
 				DeleteObject(hBrush);
-
-				if (i == position.x && j == position.y)
+				for (int k = 0; k < 10; ++k) {
+					if (players[k][0] == 1) {
+						if (i == (int)players[k][1]-1 && j == (int)players[k][2]-1)
+						{
+							POWN.Draw(memDC, x, y, SQUARE_SIZE, SQUARE_SIZE);
+						}
+					}
+				}
+				/*if (i == position.x && j == position.y)
 				{
 					POWN.Draw(memDC, x, y, SQUARE_SIZE, SQUARE_SIZE);
-				}
+				}*/
 			}
 		}
 		
@@ -274,15 +326,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		}
 
 	}
-	if (send_buf[0] != 0) {
-
-		WSABUF s_buf;
-
-		s_buf.buf = send_buf;
-		s_buf.len = 1;
-
-		DWORD sent_byte;
-		cout << "SEND가 일을 하니?" << endl;
+	if (send_buf[0] != 0) {		
+		//cout << "SEND : " << (int)send_buf[0] << endl;
 		WSASend(s_socket, &s_buf, 1, &sent_byte, 0, 0, 0);
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam); // 위의 세 메시지 외의 나머지 메시지는 OS로
