@@ -297,10 +297,10 @@ int main()
 	g_h_iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
 	CreateIoCompletionPort(reinterpret_cast<HANDLE>(g_server), g_h_iocp, 9999, 0);
 	SOCKET c_socket = WSASocket(AF_INET, SOCK_STREAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
-	OVER_EXP* a_over = new OVER_EXP();
-	a_over->_comp_type = OP_ACCEPT;
-	a_over->accept_socket = c_socket;
-	AcceptEx(g_server, c_socket, a_over->_send_buf, 0, addr_size + 16, addr_size + 16, 0, &a_over->_over);
+	OVER_EXP a_over;
+	a_over._comp_type = OP_ACCEPT;
+	a_over.accept_socket = c_socket;
+	AcceptEx(g_server, c_socket, a_over._send_buf, 0, addr_size + 16, addr_size + 16, 0, &a_over._over);
 
 	vector<thread> worker_threads;
 	int num_cores = thread::hardware_concurrency();
