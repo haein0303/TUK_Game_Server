@@ -7,6 +7,7 @@
 #include <mutex>
 #include <unordered_set>
 #include <concurrent_unordered_set.h>
+#include <random>
 #include "protocol.h"
 
 #pragma comment(lib, "WS2_32.lib")
@@ -181,10 +182,12 @@ void process_packet(int c_id, char* packet)
 {
 	switch (packet[1]) {
 	case CS_LOGIN: {
+		default_random_engine engine;
+		engine.seed(c_id);
 		CS_LOGIN_PACKET* p = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
 		strcpy_s(clients[c_id]._name, p->name);
-		clients[c_id].x = rand() % W_WIDTH;
-		clients[c_id].y = rand() % W_HEIGHT;
+		clients[c_id].x = engine() % W_WIDTH;
+		clients[c_id].y = engine() % W_HEIGHT;
 		clients[c_id].send_login_info_packet();
 		{
 			lock_guard<mutex> ll{ clients[c_id]._s_lock };
