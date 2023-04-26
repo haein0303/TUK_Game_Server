@@ -55,6 +55,7 @@ public:
 	int		_last_move_time;
 
 	unordered_set <int> _view_list;
+	unordered_set <int> _zone_list;
 	mutex _vl;
 public:
 	SESSION()
@@ -114,6 +115,76 @@ public:
 	}
 };
 
+class ZONE {
+public:
+	int x_min_, x_max_, y_min_, y_max_;
+	int my_num = -1;
+	unordered_set <int> user_list;
+	mutex zl;
+public:
+	ZONE(int x_min, int x_max, int y_min, int y_max)
+		: x_min_(x_min), x_max_(x_max), y_min_(y_min), y_max_(y_max)
+	{}
+	bool contains(const SESSION& player) const {
+		bool is_in = false;
+		//내부에 있는지 검사
+		if (player.x >= x_min_ && player.x <= x_max_ && player.y >= y_min_ && player.y <= y_max_) 
+		{
+			is_in = true;
+		};
+
+		if (is_in) {
+			//없을때 처리
+			if (user_list.count(player._id) == 0) {
+				//유저 zonelist에 추가
+				//내꺼도 추가
+			}
+		}
+		else {
+			//있을때 처리
+			if (user_list.count(player._id) != 0) {
+				//유저 zonelist에서 빼줘야됨
+				//내꺼에서도 빼야됨
+			}
+		}
+
+		
+
+		return is_in;
+	}
+};
+
+class MAP {
+public:
+	vector<ZONE> zone_list;
+public:
+	//존 크기 오토로 만들기
+	void make_zone_auto(int sep_count) {
+		/*전체 크기 나누기 몇개의 존 생성할지 
+		  버퍼존은 양쪽에 적용되서 실질적 2배
+		  맨 끝에 있는 영역의 초과는 이동에서 막아줌으로 별도의 처리는 하지 않는걸로
+		*/
+		int counter = 0;
+		
+		int x = W_WIDTH / sep_count;
+		int y = W_HEIGHT / sep_count;
+		int buf_size = (x + y) / 6; // X랑 Y의 평균의 1/3정도
+		for (int i = 0; i < sep_count; ++i) {
+			for (int j = 0; j < sep_count; ++j) {
+				ZONE tmp(
+					x * j - buf_size, 
+					x * (j + 1) + buf_size, 
+					y * i - buf_size,
+					y * (i + 1) + buf_size
+				);
+				tmp.my_num = counter++;
+				zone_list.emplace_back(tmp);
+			}
+		}
+	}
+
+	
+};
 array<SESSION, MAX_USER> clients;
 
 SOCKET g_s_socket, g_c_socket;
@@ -178,11 +249,14 @@ bool can_see(int p1, int p2)
 	return true;
 }
 
+//자꾸 생성하는건 좀 힘들어 하네
+default_random_engine engine;
+
 void process_packet(int c_id, char* packet)
 {
 	switch (packet[1]) {
 	case CS_LOGIN: {
-		default_random_engine engine;
+		
 		engine.seed(c_id);
 		CS_LOGIN_PACKET* p = reinterpret_cast<CS_LOGIN_PACKET*>(packet);
 		strcpy_s(clients[c_id]._name, p->name);
