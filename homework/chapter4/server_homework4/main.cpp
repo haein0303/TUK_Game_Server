@@ -143,31 +143,37 @@ public:
 		if (is_in) {
 			//없을때 처리
 			//없을때만 검사하고 동작시켜야죵
+			zl.lock();
 			if (user_list.count(player._id) == 0) {
 				//유저 zonelist에 추가
 				//내꺼도 추가
-				zl.lock();
+				
 				user_list.insert(player._id);
 				zl.unlock();
 				player._zl.lock();
 				player._zone_list.insert(my_num);
 				player._zl.unlock();
+				return is_in;
 			}
+			zl.unlock();
 		}
 		else {
 			//있을때 처리
 			//있을때만 검사하고 동작시켜야죵
+			zl.lock();
 			if (user_list.count(player._id) != 0) {
 				//유저 zonelist에서 빼줘야됨
 				//내꺼에서도 빼야됨
 
-				zl.lock();
+				
 				user_list.erase(player._id);
 				zl.unlock();
 				player._zl.lock();
 				player._zone_list.erase(my_num);
 				player._zl.unlock();
+				return is_in;
 			}
+			zl.unlock();
 		}
 
 		return is_in;
@@ -326,6 +332,8 @@ void process_packet(int c_id, char* packet)
 		clients[c_id].x = x;
 		clients[c_id].y = y;
 
+		//cout << clients[c_id].x << ":" << clients[c_id].y << endl;
+
 		clients[c_id]._vl.lock();
 		auto old_vl = clients[c_id]._view_list;
 		clients[c_id]._vl.unlock();
@@ -365,13 +373,14 @@ void process_packet(int c_id, char* packet)
 				clients[c_id].send_move_packet(o);
 			}
 		}
+		clients[c_id].send_move_packet(c_id);
 
 
-		for (auto& cl : clients) {
+		/*for (auto& cl : clients) {
 			if (cl._state != ST_INGAME) continue;
 			cl.send_move_packet(c_id);
 
-		}
+		}*/
 	}
 	}
 }
@@ -386,6 +395,17 @@ void disconnect(int c_id)
 		if (pl._id == c_id) continue;
 		pl.send_remove_player_packet(c_id);
 	}
+	clients[c_id]._zl.lock();
+	clients[c_id]._view_list.clear();
+	clients[c_id]._zl.unlock();
+	for (auto& m : g_map.zone_list) {
+		if (m.user_list.count(c_id) != 0) {
+			m.zl.lock();
+			m.user_list.erase(c_id);
+			m.zl.unlock();
+		}
+	}
+
 	closesocket(clients[c_id]._socket);
 
 	lock_guard<mutex> ll(clients[c_id]._s_lock);
