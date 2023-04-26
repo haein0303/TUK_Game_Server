@@ -6,7 +6,6 @@
 #include <vector>
 #include <mutex>
 #include <unordered_set>
-#include <concurrent_unordered_set.h>
 #include <random>
 #include "protocol.h"
 
@@ -56,6 +55,7 @@ public:
 
 	unordered_set <int> _view_list;
 	unordered_set <int> _zone_list;
+	mutex _zl;
 	mutex _vl;
 public:
 	SESSION()
@@ -119,13 +119,20 @@ class ZONE {
 public:
 	int x_min_, x_max_, y_min_, y_max_;
 	int my_num = -1;
-	unordered_set <int> user_list;
+	std::unordered_set<int> user_list;
 	mutex zl;
 public:
-	ZONE(int x_min, int x_max, int y_min, int y_max)
-		: x_min_(x_min), x_max_(x_max), y_min_(y_min), y_max_(y_max)
-	{}
-	bool contains(const SESSION& player) const {
+	ZONE(const ZONE& zone) 
+		: x_min_(zone.x_min_), x_max_(zone.x_max_), y_min_(zone.y_min_), y_max_(zone.y_max_), my_num(zone.my_num) {
+
+	}
+	ZONE(int x_min, int x_max, int y_min, int y_max,int num)
+		: x_min_(x_min), x_max_(x_max), y_min_(y_min), y_max_(y_max),my_num(num)
+	{
+		
+	}
+	bool contains(SESSION& player) {
+		
 		bool is_in = false;
 		//내부에 있는지 검사
 		if (player.x >= x_min_ && player.x <= x_max_ && player.y >= y_min_ && player.y <= y_max_) 
@@ -135,23 +142,37 @@ public:
 
 		if (is_in) {
 			//없을때 처리
+			//없을때만 검사하고 동작시켜야죵
 			if (user_list.count(player._id) == 0) {
 				//유저 zonelist에 추가
 				//내꺼도 추가
+				zl.lock();
+				user_list.insert(player._id);
+				zl.unlock();
+				player._zl.lock();
+				player._zone_list.insert(my_num);
+				player._zl.unlock();
 			}
 		}
 		else {
 			//있을때 처리
+			//있을때만 검사하고 동작시켜야죵
 			if (user_list.count(player._id) != 0) {
 				//유저 zonelist에서 빼줘야됨
 				//내꺼에서도 빼야됨
+
+				zl.lock();
+				user_list.erase(player._id);
+				zl.unlock();
+				player._zl.lock();
+				player._zone_list.erase(my_num);
+				player._zl.unlock();
 			}
 		}
 
-		
-
 		return is_in;
 	}
+
 };
 
 class MAP {
@@ -175,7 +196,8 @@ public:
 					x * j - buf_size, 
 					x * (j + 1) + buf_size, 
 					y * i - buf_size,
-					y * (i + 1) + buf_size
+					y * (i + 1) + buf_size,
+					counter
 				);
 				tmp.my_num = counter++;
 				zone_list.emplace_back(tmp);
@@ -186,7 +208,7 @@ public:
 	
 };
 array<SESSION, MAX_USER> clients;
-
+MAP g_map;
 SOCKET g_s_socket, g_c_socket;
 OVER_EXP g_a_over;
 
@@ -267,7 +289,7 @@ void process_packet(int c_id, char* packet)
 			lock_guard<mutex> ll{ clients[c_id]._s_lock };
 			clients[c_id]._state = ST_INGAME;
 		}
-		for (auto& pl : clients) {
+		/*for (auto& pl : clients) {
 			{
 				lock_guard<mutex> ll(pl._s_lock);
 				if (ST_INGAME != pl._state) continue;
@@ -276,6 +298,17 @@ void process_packet(int c_id, char* packet)
 			if (can_see(c_id, pl._id) == false) continue;
 			pl.send_add_player_packet(c_id);
 			clients[c_id].send_add_player_packet(pl._id);
+		}*/
+		for (auto& m : g_map.zone_list) {
+			m.contains(clients[c_id]);
+		}
+		for (auto& vl : clients[c_id]._zone_list) {
+			for (auto& p : g_map.zone_list[vl].user_list) {
+				if (p == c_id) continue;
+				if (can_see(c_id, p) == false) continue;
+				clients[p].send_add_player_packet(c_id);
+				clients[c_id].send_add_player_packet(p);
+			}
 		}
 		break;
 	}
@@ -297,13 +330,30 @@ void process_packet(int c_id, char* packet)
 		auto old_vl = clients[c_id]._view_list;
 		clients[c_id]._vl.unlock();
 
+
+		//Todo : 모든 클라이언트 검사가 아니라 zone에서 검사하자
+
+		for (auto& m : g_map.zone_list) {
+			m.contains(clients[c_id]);
+		}
+
 		unordered_set <int> new_vl;
-		for (auto& cl : clients) {
+
+		for (auto& vl : clients[c_id]._zone_list) {
+			for (auto& p : g_map.zone_list[vl].user_list) {
+				if (p == c_id) continue;
+				if (can_see(c_id, p) == false) continue;
+				new_vl.insert(p);
+			}
+		}
+
+		
+		/*for (auto& cl : clients) {
 			if (cl._state != ST_INGAME) continue;
 			if (cl._id == c_id) continue;
 			if (can_see(cl._id, c_id))
 				new_vl.insert(cl._id);
-		}
+		}*/
 
 		for (auto& o : new_vl) {
 			if (old_vl.count(o) == 0) {
@@ -421,6 +471,8 @@ void worker_thread(HANDLE h_iocp)
 
 int main()
 {
+	g_map.make_zone_auto(20);
+
 	HANDLE h_iocp;
 
 	WSADATA WSAData;
