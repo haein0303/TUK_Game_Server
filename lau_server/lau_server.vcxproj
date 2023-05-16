@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{69277c7e-7a02-489a-b043-6571ff27d71c}</ProjectGuid>
-    <RootNamespace>lautoturial</RootNamespace>
+    <ProjectGuid>{9e7c706f-10c9-43d7-9b3c-c1c4fddf18da}</ProjectGuid>
+    <RootNamespace>lauserver</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -127,10 +127,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="lua.cpp" />
+    <ClCompile Include="npc_ai_lua.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="dragon.lua" />
+    <ClInclude Include="protocol.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
