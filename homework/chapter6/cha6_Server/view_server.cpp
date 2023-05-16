@@ -15,7 +15,7 @@ using namespace std;
 
 constexpr int VIEW_RANGE = 5;
 
-enum COMP_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_NPC_AI };
+enum COMP_TYPE { OP_ACCEPT, OP_RECV, OP_SEND, OP_NPC_AI};
 enum EVENT_TYPE { EV_RANDOM_MOVE, EV_ATTACK, EV_HEAL };
 
 class OVER_EXP {
@@ -182,6 +182,14 @@ int get_new_client_id()
 	return -1;
 }
 
+void wake_up_npc(int npc_id)
+{
+	OVER_EXP* exover = new OVER_EXP;
+	exover->_comp_type = OP_NPC_AI;
+	exover->_event_type = EV_RANDOM_MOVE;
+	PostQueuedCompletionStatus(g_h_iocp, 1, npc_id, &exover->_over);
+}
+
 void process_packet(int c_id, char* packet)
 {
 	switch (packet[1]) {
@@ -261,7 +269,7 @@ void process_packet(int c_id, char* packet)
 				clients[pl].send_remove_player_packet(c_id);
 			}
 	}
-				break;
+		break;
 	}
 }
 
@@ -361,9 +369,18 @@ void worker_thread()
 			delete ex_over;
 			break;
 		case OP_NPC_AI:
-			delete ex_over;
 			EVENT_TYPE evt = ex_over->_event_type;
-			do_npc_ai(static_cast<int>(key) /*, evt */ );
+			switch (evt) {
+			case EV_RANDOM_MOVE: {
+				do_npc_ai(static_cast<int>(key) /*, evt */);
+				EVENT evt{ static_cast<int>(key), EV_RANDOM_MOVE ,chrono::system_clock::now() + 1s };
+				g_tl.lock();
+				g_timer_queue.push(evt);
+				g_tl.unlock();
+			}				
+				break;
+			}			
+			delete ex_over;
 			break;
 		}
 	}
@@ -466,12 +483,21 @@ void do_ai()
 void do_timer()
 {
 	while (true) {
+		g_tl.lock();
+		if (g_timer_queue.empty()) {
+			g_tl.unlock();
+			continue;
+		}
+		g_tl.unlock();
+
 		auto ev = g_timer_queue.top();
 		if (ev._exec_time > chrono::system_clock::now()) {
 			this_thread::sleep_for(10ms);
 			continue;
 		}
+		g_tl.lock();
 		g_timer_queue.pop();
+		g_tl.unlock();
 		int npc_id = ev._oid;
 		OVER_EXP* ov = new OVER_EXP;
 		ov->_comp_type = OP_NPC_AI;
@@ -503,7 +529,7 @@ int main()
 
 	initialize_npc();
 
-	// thread ai_thread{ do_ai };
+	//thread ai_thread{ do_ai };
 	thread timer_thread{ do_timer };
 
 	vector <thread> worker_threads;
